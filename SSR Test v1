@@ -1,0 +1,45 @@
+; SSR_Testv1.asm
+; use microcontroller to test complementing P3.7 to turn on and off the oven
+; toggles oven on/off with a button
+$MODLP52
+org 0000H
+   ljmp MainProgram
+
+; These 'equ' must match the wiring between the microcontroller and the LCD!
+LCD_RS equ P1.4
+LCD_RW equ P1.5
+LCD_E  equ P1.6
+LCD_D4 equ P3.2
+LCD_D5 equ P3.3
+LCD_D6 equ P3.4
+LCD_D7 equ P3.5
+
+SSR_Power 	equ P3.7
+button		equ P2.6
+$NOLIST
+$LIST
+
+$include(LCD_4bit.inc)
+DSEG at 30H
+
+bseg
+
+CSEG
+
+MainProgram:
+	mov SP, #7FH
+    mov PMOD, #0 ; Configure all ports in bidirectional mode
+	clr SSR_Power
+
+Forever:	
+	jnb button, toggle_SSR ;  if button is pressed, toggle SSR
+	sjmp Forever
+	
+toggle_SSR:
+	Wait_Milli_Seconds(#50)
+	jnb button, $
+	Wait_Milli_Seconds(#50)
+	cpl SSR_Power	; toggles SSR
+	sjmp Forever
+	
+END
