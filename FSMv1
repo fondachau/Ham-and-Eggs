@@ -1,0 +1,139 @@
+; FSMv1.asm
+; FSM code with states
+$MODLP52
+org 0000H
+   ljmp MainProgram
+
+SSR_Power         equ P3.7
+coolTmp            equ 40
+
+$NOLIST
+$include(LCD_4bit.inc)            ; library of LCD functions
+$include(FSMinclude.h) 
+$LIST
+
+DSEG at 30H
+; user defined variables
+soakTime:          ds 1
+soakTmp:           ds 1
+reflowTime:        ds 1
+reflowTmp:        ds 1
+state:                ds 1
+
+currTmp:            ds 1                ; from temp sensor
+timerCount:            ds 1            ; from timer
+
+; These 'equ' must match the wiring between the microcontroller and the LCD!
+LCD_RS equ P1.4
+LCD_RW equ P1.5
+LCD_E  equ P1.6
+LCD_D4 equ P3.2
+LCD_D5 equ P3.3
+LCD_D6 equ P3.4
+LCD_D7 equ P3.5
+
+bseg
+start:        dbit 1
+chkbit:            dbit 1            ; true = 1, false = 0
+
+cseg
+; FSM states
+; process has not started yet; user can input desired temp, time, etc.
+; default state for reset
+state0:
+    Set_Cursor(1,1)
+    Send_Constant_String (#Stage)
+    ; set power = 0
+    jb start, state1        ; if start = 1, jump to state 1
+    ljmp state0
+
+; ramp to soak stage
+; 100% power; stays in state until current temperature reaches soak temperature
+state1:
+	inc currTmp
+    jnb start, jumpstate0            ; if start = 0, reset to state 0
+    Power_Percentage(#100)        ; set power = 100%
+    Wait_Milli_Seconds(#250)
+    Wait_Milli_Seconds(#250)
+    Set_Cursor(1,8)
+    Send_Constant_String(#Ramp)
+    ; set sec = 0
+    ; compare if temp <= 150
+    BLE(currTmp, soakTmp)           ; check if currTmp <= soakTmp
+    jb chkbit, $                              ; if true, loop
+    sjmp state2                            ; else cont states
+
+; jump label to go to state0    
+jumpstate0:
+	ljmp state0
+    
+; at preheat/soak state
+; stays in this state until soak time has been reached (20% power0
+state2:
+    jnb start, jumpstate0            ; if start pressed, reset to state0
+    cjne a, #2, state3        ; check if state = 2
+    Set_Cursor(1,8)
+    Send_Constant_String(#Soak)
+    Power_Percentage(#20)
+   BLE(timerCount, soakTime)           ; check if timerCount < = soakTime
+    jb chkbit, $                              ; if true, loop
+    sjmp state3                            ; else cont states
+
+jump2state0:
+	ljmp state0
+
+; ramp to peak state
+; 100% power, stays in state until selected reflow temperature has been reached
+state3:
+    Power_Percentage(#100)    ; put 100% power
+     Set_Cursor(1,8)
+    Send_Constant_String(#Peak)
+    jnb start, jump2state0        ; if start = 0, reset to state 0
+    BLE(currTmp, reflowTmp)           ; check if currTmp <= reflowTmp
+    jb chkbit, $                              ; if true, loop
+    sjmp state4                            ; else cont states
+
+; reflow stage
+; 20% power, stays in stage until selected reflow time has been reached
+state4:
+    Power_Percentage(#20); set power = 20%
+    ; if timerCount <= reflowTime, loop
+     Set_Cursor(1,8)
+    Send_Constant_String(#Reflow)
+    BLE(timerCount, reflowTime)           ; check if timerCount <= reflowTime
+    jb chkbit, $                              ; if true, loop
+    sjmp state5                            ; else cont states
+
+; cooling stage
+; 0% power, stays in stage until current temperature has dropped to 60
+state5:
+    ; set power = 0%
+    ; if temp >= 60C, loop (code is same as <= except for jump to state 0
+    Set_Cursor(1,8)
+    Send_Constant_String(#Cool)
+    BGE(currTmp, #coolTmp)           ; check if currTmp <= coolTmp
+    jb chkbit, $                              ; if true, loop
+    ljmp state0                            ; else cont states
+
+; status messages
+Stage: db 'Stage:', 0
+StartMessage: db 'Start?', 0
+Ramp: db 'Ramp', 0
+Soak: db 'Soak', 0
+Peak: db 'Peak', 0
+Reflow: db 'Reflow', 0
+Cool: db 'Cooling', 0
+
+
+MainProgram:
+    mov SP, #7FH
+    mov PMOD, #0 ; Configure all ports in bidirectional mode
+    clr SSR_Power
+
+	mov soakTmp, #40
+	mov currTmp, #30
+Forever:        
+	ljmp state1
+	sjmp Forever
+        
+END
