@@ -1,0 +1,51 @@
+; FSMinclude.h
+; macros
+$NOLIST
+CSEG
+
+; macro to do PWM
+; recieves power percentage, turns on for that number of milliseconds, off for 100 minus that percentage
+Power_Percentage mac
+    setb SSR_Power                ; turn on power
+    Wait_Milli_Seconds(%0)      ; leave power on for percentage number of milliseconds
+    clr SSR_Power                    ; turn off power
+    mov a, #100
+    subb a, %0
+    Wait_Milli_Seconds(a)   ;  leave power off for 100-percentage number of milliseconds
+endmac
+
+; macro for value >= chk and returns chkbit = true/false
+; BGE(value,chk)
+BGE mac
+    clr chkbit                                    ; clear chkbit
+    clr c                                        ; clear carry
+    mov a, %0                            ; mov a, value
+    subb a, %1                            ; subtract check with value
+    lcall ?BGE
+endmac
+?BGE:
+    cjne a, #0, ?BGE_cont            ; check if 0
+    sjmp ?BGE_done                    ; if 0, jbit remains clear, and finish macro
+?BGE_cont:
+    jc ?BGE_done                            ; if c set, then value < chk (false)
+    setb chkbit                                ; if c not set, then value > chk (true)
+?BGE_done:
+
+; macro for value <= chk and returns chkbit = true/false
+; BLE(value,chk)
+BLE mac
+    clr chkbit                                    ; clear chkbit
+    clr c                                        ; clear carry
+    mov a, %0                            ; mov a, value
+    subb a, %1                            ; subtract check with value
+    lcall ?BLE
+endmac
+
+?BLE:
+    cjne a, #0, ?BLE_cont            ; check if 0
+    sjmp ?BLE_done                    ; if 0, jbit remains clear, and finish macro
+?BLE_cont:
+    jnc ?BLE_done                            ; if c not set, then value < chk (false)
+    setb chkbit                                ; if c set, then value < chk (true)
+?BLE_done:
+	ret
